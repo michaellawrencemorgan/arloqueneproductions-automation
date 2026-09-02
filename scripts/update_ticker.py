@@ -19,8 +19,8 @@ def fetch_ticker_updates():
         "You are an automated news wire aggregator for PrayerMapUSA. "
         "Find and summarize 10 timely, factual prayer alerts, breaking US national/regional news, "
         "and community prayer topics from verified wire services, X/Twitter, and local reporting over the last 8 hours. "
-        "Return strictly a raw JSON array of objects with no markdown fences, matching this structure: "
-        '[{"title": "Headline text here", "source": "AP / X / Local News", "state": "TX"}]'
+        "Return strictly a raw JSON array of objects with no markdown formatting or backticks, matching this exact structure: "
+        '[{"title": "Headline text here", "summary": "Brief 1-2 sentence overview", "source": "AP / X / Local News", "state": "Texas", "slug": "texas"}]'
     )
 
     response = grok.chat.completions.create(
@@ -31,6 +31,7 @@ def fetch_ticker_updates():
 
     raw_text = response.choices[0].message.content.strip()
 
+    # Clean markdown fences if present
     if raw_text.startswith("```"):
         raw_text = raw_text.strip("`")
         if raw_text.startswith("json"):
@@ -41,9 +42,11 @@ def fetch_ticker_updates():
 
     for item in items:
         item["created_at"] = now
+        item["published"] = True
 
-    supabase.table("news_ticker").insert(items).execute()
-    print(f"Successfully inserted {len(items)} items into news_ticker.")
+    # Insert directly into prayer_news
+    supabase.table("prayer_news").insert(items).execute()
+    print(f"Successfully inserted {len(items)} items into prayer_news.")
 
 if __name__ == "__main__":
     fetch_ticker_updates()
