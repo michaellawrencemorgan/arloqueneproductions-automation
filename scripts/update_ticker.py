@@ -23,9 +23,8 @@ def fetch_ticker_updates():
         '[{"title": "Headline text here", "summary": "Brief 1-2 sentence overview", "source": "AP / X / Local News", "state": "Texas", "slug": "texas"}]'
     )
 
-    # Use standard grok-2 alias
     response = grok.chat.completions.create(
-        model="grok-2",
+        model="grok-4.3",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
     )
