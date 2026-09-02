@@ -2,6 +2,7 @@ import os
 import json
 import re
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from supabase import create_client, Client
 from openai import OpenAI
 
@@ -19,6 +20,7 @@ grok = OpenAI(
     timeout=180.0,
 )
 
+
 def extract_json(text: str):
     text = (text or "").strip()
     if text.startswith("```"):
@@ -32,6 +34,7 @@ def extract_json(text: str):
         if match:
             return json.loads(match.group(1))
         raise
+
 
 def fetch_ticker_updates():
     prompt = (
@@ -61,7 +64,6 @@ def fetch_ticker_updates():
     raw_text = (message.content or "").strip()
     if not raw_text:
         raw_text = (getattr(message, "reasoning_content", None) or "").strip()
-
     if not raw_text:
         raise RuntimeError(
             f"Grok returned empty content. finish_reason="
@@ -74,12 +76,37 @@ def fetch_ticker_updates():
         raise RuntimeError(f"Unexpected payload: {parsed!r}")
 
     now = datetime.now(timezone.utc).isoformat()
+    news_date = datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
+
     for item in items:
         item["created_at"] = now
         item["published"] = True
+        item["news_date"] = news_date
+        item["slug"] = str(item.get("slug") or "").strip().lower()
 
-    supabase.table("prayer_news").insert(items).execute()
-    print(f"Successfully inserted {len(items)} items into prayer_news.")
+    seen = set()
+    unique_items = []
+    for item in items:
+        key = (item.get("slug"), item.get("news_date"))
+        if not item.get("slug"):
+            print(f"Skipping item with empty slug: {item.get('title')!r}")
+            continue
+        if key in seen:
+            print(f"Skipping duplicate in batch: {key}")
+            continue
+        seen.add(key)
+        unique_items.append(item)
+
+    if not unique_items:
+        print("No ticker items to write.")
+        return
+
+    supabase.table("prayer_news").upsert(
+        unique_items,
+        on_conflict="slug,news_date",
+    ).execute()
+    print(f"Successfully upserted {len(unique_items)} items into prayer_news.")
+
 
 if __name__ == "__main__":
     fetch_ticker_updates()
